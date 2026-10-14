@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {clearCloudPosition,CLOUD_CLEARANCE} from '../src/scene/clouds.ts';
 import {createCloudField} from '../src/scene/cloudVolume.ts';
 import {atmosphereUniforms} from '../src/scene/atmosphere.ts';
-import {SKY_GRID,SKY_SPAN,VALLEY_CLOUD_COUNT} from '../src/scene/cloudLayout.ts';
+import {SKY_GRID,SKY_SPAN,VALLEY_CLOUD_COUNT,PLATEAU_CLOUD_COUNT} from '../src/scene/cloudLayout.ts';
 import {TOP,FLOOR,terrainHeight} from '../src/scene/physics.ts';
 
 test('valley cloud bounds stay outside the cliff and above the lower field',()=>{
@@ -18,7 +18,7 @@ test('valley cloud bounds stay outside the cliff and above the lower field',()=>
 test('actual 3D cloud instances and their shadows remain clear after hours of drift',()=>{
  const scene=new THREE.Scene(),atmosphere=atmosphereUniforms(),field=createCloudField(scene,atmosphere,false);
  field.update(86400,86400);
- const clouds=scene.children[0].children;assert.equal(clouds.length,VALLEY_CLOUD_COUNT+SKY_GRID*SKY_GRID);
+ const clouds=scene.children[0].children;assert.equal(clouds.length,VALLEY_CLOUD_COUNT+SKY_GRID*SKY_GRID+PLATEAU_CLOUD_COUNT);
  clouds.forEach((cloud,i)=>{
   if(i<VALLEY_CLOUD_COUNT){assert.ok(cloud.position.z-cloud.scale.z>=CLOUD_CLEARANCE-1e-9);assert.ok(cloud.position.y-cloud.scale.y>=FLOOR+CLOUD_CLEARANCE-1e-9);}
   else assert.ok(cloud.position.y-cloud.scale.y>=TOP+CLOUD_CLEARANCE-1e-9);
@@ -75,5 +75,27 @@ test('cloud motion only translates slowly, retaining each density variant and or
   assert.deepEqual(cloud.quaternion.toArray(),[0,0,0,1]);
   assert.ok(cloud.userData.speed<=.85);
  });
+ field.dispose();
+});
+
+test('the upper field has low hovering clouds and distinct middle and high layers',()=>{
+ const scene=new THREE.Scene(),atmosphere=atmosphereUniforms(),field=createCloudField(scene,atmosphere,false);
+ const clouds=scene.children[0].children,local=clouds.slice(-PLATEAU_CLOUD_COUNT);
+ const low=local.filter(c=>c.position.y-c.scale.y-TOP<50);
+ assert.equal(low.length,16);
+ low.forEach(cloud=>{
+  assert.ok(cloud.position.z+cloud.scale.z<0,'Low formations must visibly hover over the plateau');
+  assert.ok(cloud.position.y-cloud.scale.y>=TOP+CLOUD_CLEARANCE);
+  assert.ok(Math.hypot(cloud.position.x,cloud.position.z+56)>150,'Keep the cottage and ladder approach clear');
+ });
+ const upper=clouds.slice(VALLEY_CLOUD_COUNT),bins=[0,0,0];
+ for(const c of upper){const gap=c.position.y-c.scale.y-TOP;bins[gap<80?0:gap<300?1:2]++;}
+ assert.ok(bins.every(n=>n>100),`Missing altitude layer: ${bins}`);
+ field.update(1,0,new THREE.Vector3(-210,180,-180));
+ atmosphere.uCloudCenters.value.forEach((center,i)=>{
+  const cloud=clouds.find(c=>c.position.equals(center));
+  assert.equal(atmosphere.uCloudSkyLayers.value[i],cloud.userData.layer==='sky'?1:0,'Low clouds must not be counted as valley shadows');
+ });
+ assert.ok(atmosphere.uCloudSkyLayers.value.includes(1));
  field.dispose();
 });

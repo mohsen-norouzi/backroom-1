@@ -7,8 +7,9 @@ import { createCloudShadowAtlas } from './cloudShadow';
 import { createFieldShadows } from './fieldShadows';
 import { clearCloudBounds } from './clouds';
 import { horizonGLSL } from './horizon';
-import { SKY_GRID, SKY_CELL, SKY_SPAN, VALLEY_CLOUD_COUNT, wrapCloudCoordinate } from './cloudLayout';
+import { SKY_GRID, SKY_CELL, SKY_SPAN, VALLEY_CLOUD_COUNT, PLATEAU_CLOUDS, PLATEAU_CLOUD_COUNT, wrapCloudCoordinate } from './cloudLayout';
 import { CLOUD_SHADOW_COUNT } from './atmosphere';
+import { TOP } from './physics';
 import type { AtmosphereUniforms } from './atmosphere';
 export function createCloudField(scene:THREE.Scene,atmosphere:AtmosphereUniforms,loadAssets=true){
   const seeds=[713,1949,3571],textures=seeds.map(seed=>createCloudDensity(seed,24));
@@ -65,26 +66,33 @@ export function createCloudField(scene:THREE.Scene,atmosphere:AtmosphereUniforms
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
     }`;
-  for(let i=0;i<VALLEY_CLOUD_COUNT+SKY_GRID*SKY_GRID;i++){
-    const valley=i<VALLEY_CLOUD_COUNT,lowLayer=!valley&&(i-VALLEY_CLOUD_COUNT)%3===0;
-    const size=valley?new THREE.Vector3(42+rng()*28,25+rng()*16,30+rng()*20):lowLayer?new THREE.Vector3(34+rng()*31,21+rng()*17,28+rng()*27):new THREE.Vector3(48+rng()*64,35+rng()*37,38+rng()*49);
+  for(let i=0;i<VALLEY_CLOUD_COUNT+SKY_GRID*SKY_GRID+PLATEAU_CLOUD_COUNT;i++){
+    const valley=i<VALLEY_CLOUD_COUNT,local=i>=VALLEY_CLOUD_COUNT+SKY_GRID*SKY_GRID;
+    const level=(i-VALLEY_CLOUD_COUNT)%5,lowLayer=local||(!valley&&level===0);
+    const size=valley?new THREE.Vector3(42+rng()*28,25+rng()*16,30+rng()*20):lowLayer?new THREE.Vector3(42+rng()*32,25+rng()*14,32+rng()*23):new THREE.Vector3(54+rng()*62,36+rng()*35,44+rng()*42);
     let position:THREE.Vector3;
     if(valley){
       const heroes=[[-72,-4,88],[86,48,105],[-245,70,125],[260,-35,140],[-105,-96,150],[45,-101,135]];
       const heroSizes=[[76,40,43],[88,47,48],[85,45,48],[75,32,48],[95,35,58],[61,29,40]];
       if(i<heroSizes.length)size.set(...heroSizes[i] as [number,number,number]);
       position=i<heroes.length?new THREE.Vector3(...heroes[i] as [number,number,number]):new THREE.Vector3((rng()-.5)*4200,-60+rng()*210,120+rng()*2400);
+    }else if(local){
+      const [x,z,clearance]=PLATEAU_CLOUDS[i-VALLEY_CLOUD_COUNT-SKY_GRID*SKY_GRID];
+      position=new THREE.Vector3(x,TOP+size.y+clearance,z);
     }else {
       const cell=i-VALLEY_CLOUD_COUNT;
       const x=(cell%SKY_GRID+.12+rng()*.76)*SKY_CELL-SKY_SPAN/2;
       const z=(Math.floor(cell/SKY_GRID)+.12+rng()*.76)*SKY_CELL-SKY_SPAN/2;
-      position=new THREE.Vector3(x,lowLayer?200+rng()*70:310+rng()*170,z);
+      // Uneven altitude bands: low drifting cumulus, a middle layer, then tall
+      // formations overhead. Each cloud keeps this altitude for its whole life.
+      const bottom=lowLayer?25+rng()*45:level<4?115+rng()*125:300+rng()*185;
+      position=new THREE.Vector3(x,TOP+size.y+bottom,z);
     }
     const bounds=size.clone();if(valley)bounds.z=Math.max(size.x,size.z);
     const clear=clearCloudBounds(position,bounds,valley?'valley':'sky');position.set(clear.x,clear.y,clear.z);
 
     const cloud=new THREE.Object3D();cloud.position.copy(position);cloud.scale.copy(size);
-    // A slow shared breeze; higher clouds cover more ground to remain perceptibly in motion.
+    // The upper layers share one slow breeze, so their precomputed shadows stay aligned.
     const drift=rng();cloud.userData.speed=valley?.28+drift*.12:.72;cloud.userData.initialPosition=position.clone();cloud.userData.layer=valley?'valley':'sky';cloud.userData.variant=i%seeds.length;
     cloud.userData.distance=Infinity;clouds.push(cloud);group.add(cloud);
   }
@@ -154,6 +162,7 @@ export function createCloudField(scene:THREE.Scene,atmosphere:AtmosphereUniforms
     for(let i=0;i<CLOUD_SHADOW_COUNT;i++){
       atmosphere.uCloudCenters.value[i].copy(nearest[i].position);atmosphere.uCloudSizes.value[i].copy(nearest[i].scale);
       atmosphere.uCloudVariants.value[i]=nearest[i].userData.variant;
+      atmosphere.uCloudSkyLayers.value[i]=nearest[i].userData.layer==='sky'?1:0;
     }
   }
   update(0,0);

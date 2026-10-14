@@ -11,6 +11,7 @@ export function atmosphereUniforms(){
     uCloudCenters:{value:Array.from({length:CLOUD_SHADOW_COUNT},()=>new THREE.Vector3())},
     uCloudSizes:{value:Array.from({length:CLOUD_SHADOW_COUNT},()=>new THREE.Vector3())},
     uCloudVariants:{value:new Float32Array(CLOUD_SHADOW_COUNT)},
+    uCloudSkyLayers:{value:new Float32Array(CLOUD_SHADOW_COUNT)},
     uCloudShadowMap:{value:null as THREE.DataTexture|null},
     uSunDirection:{value:SUN_DIRECTION.clone()},
     uAtmosTime:{value:0},
@@ -23,6 +24,7 @@ export const cloudShadowGLSL=`
 uniform vec3 uCloudCenters[8];
 uniform vec3 uCloudSizes[8];
 uniform float uCloudVariants[8];
+uniform float uCloudSkyLayers[8];
 uniform sampler2D uCloudShadowMap;
 uniform vec3 uSunDirection;
 uniform float uAtmosTime;
@@ -32,8 +34,8 @@ float cloudShade(vec3 p){
   float fieldWeight=1.-smoothstep(106.,160.,p.y);
   vec2 fieldPosition=p.xz+(105.-p.y)*uSunDirection.xz/uSunDirection.y;
   fieldPosition.x-=uSkyShadowOffset;
-  float fieldOptical=texture2D(uFieldShadows,fieldPosition/12000.+.5,1.).r;
-  float shade=1.-fieldOptical*.82*fieldWeight;
+  float fieldOptical=texture2D(uFieldShadows,fieldPosition/12000.+.5).r;
+  float shade=1.-fieldOptical*.78*fieldWeight;
   for(int i=0;i<8;i++){
     if(uCloudSizes[i].x<.1)continue;
     vec3 q=(p-uCloudCenters[i])/uCloudSizes[i];
@@ -44,12 +46,14 @@ float cloudShade(vec3 p){
     vec2 uv=vec2(dot(nearPoint,vec3(${SHADOW_RIGHT.toArray().join(',')})),dot(nearPoint,vec3(${SHADOW_UP.toArray().join(',')})))/${SHADOW_EXTENT*2}+.5;
     if(any(lessThan(uv,vec2(0.)))||any(greaterThan(uv,vec2(1.))))continue;
     // Mip filtering widens the penumbra as the cloud moves away from the receiver.
-    vec3 footprint=texture2D(uCloudShadowMap,uv,clamp(.4+log2(1.+t*.025),.8,3.8)).rgb;
+    vec3 footprint=texture2D(uCloudShadowMap,uv,clamp(1.5+log2(1.+t*.018),1.5,4.2)).rgb;
     float variant=uCloudVariants[i];
     float optical=variant<.5?footprint.r:variant<1.5?footprint.g:footprint.b;
-    float localWeight=uCloudCenters[i].y>190.?1.-fieldWeight:1.;
-    shade*=1.-optical*.91*localWeight;
+    // Low plateau clouds also exist in the field map. Layer identity, not
+    // altitude, prevents counting their shadows twice as they drift overhead.
+    float localWeight=1.-uCloudSkyLayers[i]*fieldWeight;
+    shade*=1.-optical*.78*localWeight;
   }
-  return max(.12,shade);
+  return max(.20,shade);
 }
 `;

@@ -14,6 +14,8 @@ export function atmosphereUniforms(){
     uCloudShadowMap:{value:null as THREE.DataTexture|null},
     uSunDirection:{value:SUN_DIRECTION.clone()},
     uAtmosTime:{value:0},
+    uFieldShadows:{value:null as THREE.DataTexture|null},
+    uSkyShadowOffset:{value:0},
   };
 }
 export type AtmosphereUniforms=ReturnType<typeof atmosphereUniforms>;
@@ -24,8 +26,14 @@ uniform float uCloudVariants[8];
 uniform sampler2D uCloudShadowMap;
 uniform vec3 uSunDirection;
 uniform float uAtmosTime;
+uniform sampler2D uFieldShadows;
+uniform float uSkyShadowOffset;
 float cloudShade(vec3 p){
-  float shade=1.;
+  float fieldWeight=1.-smoothstep(106.,160.,p.y);
+  vec2 fieldPosition=p.xz+(105.-p.y)*uSunDirection.xz/uSunDirection.y;
+  fieldPosition.x-=uSkyShadowOffset;
+  float fieldOptical=texture2D(uFieldShadows,fieldPosition/12000.+.5,1.).r;
+  float shade=1.-fieldOptical*.82*fieldWeight;
   for(int i=0;i<8;i++){
     if(uCloudSizes[i].x<.1)continue;
     vec3 q=(p-uCloudCenters[i])/uCloudSizes[i];
@@ -39,7 +47,8 @@ float cloudShade(vec3 p){
     vec3 footprint=texture2D(uCloudShadowMap,uv,clamp(.4+log2(1.+t*.025),.8,3.8)).rgb;
     float variant=uCloudVariants[i];
     float optical=variant<.5?footprint.r:variant<1.5?footprint.g:footprint.b;
-    shade*=1.-optical*.91;
+    float localWeight=uCloudCenters[i].y>190.?1.-fieldWeight:1.;
+    shade*=1.-optical*.91*localWeight;
   }
   return max(.12,shade);
 }

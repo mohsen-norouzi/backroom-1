@@ -4,6 +4,7 @@ import { createCloudDensity } from './cloudDensity';
 import { packCloudVolumes } from './cloudAtlas';
 import { loadCloudDensity, loadCloudShadows } from './cloudAssets';
 import { createCloudShadowAtlas } from './cloudShadow';
+import { createFieldShadows } from './fieldShadows';
 import { clearCloudBounds } from './clouds';
 import { horizonGLSL } from './horizon';
 import { SKY_GRID, SKY_CELL, SKY_SPAN, VALLEY_CLOUD_COUNT, wrapCloudCoordinate } from './cloudLayout';
@@ -84,9 +85,10 @@ export function createCloudField(scene:THREE.Scene,atmosphere:AtmosphereUniforms
 
     const cloud=new THREE.Object3D();cloud.position.copy(position);cloud.scale.copy(size);
     // A slow shared breeze; higher clouds cover more ground to remain perceptibly in motion.
-    cloud.userData.speed=valley?.28+rng()*.12:.6+rng()*.25;cloud.userData.layer=valley?'valley':'sky';cloud.userData.variant=i%seeds.length;
+    const drift=rng();cloud.userData.speed=valley?.28+drift*.12:.72;cloud.userData.initialPosition=position.clone();cloud.userData.layer=valley?'valley':'sky';cloud.userData.variant=i%seeds.length;
     cloud.userData.distance=Infinity;clouds.push(cloud);group.add(cloud);
   }
+  let fieldShadows=createFieldShadows(clouds,shadowMap);atmosphere.uFieldShadows.value=fieldShadows;
   // All clouds retain their own world-fixed density volume. One instanced draw
   // replaces camera-facing cards and the nearest-eight representation swap.
   const box=new THREE.BoxGeometry(2,2,2),geometry=new THREE.InstancedBufferGeometry();
@@ -116,12 +118,13 @@ export function createCloudField(scene:THREE.Scene,atmosphere:AtmosphereUniforms
   const shadowsReady=loadAssets?loadCloudShadows().then(texture=>{
     if(disposed){texture.dispose();return;}
     shadowMap.dispose();shadowMap=texture;atmosphere.uCloudShadowMap.value=texture;
+    fieldShadows.dispose();fieldShadows=createFieldShadows(clouds,texture);atmosphere.uFieldShadows.value=fieldShadows;
   }).catch(error=>console.warn('Cloud shadow fallback:',error)):Promise.resolve();
   const ready=Promise.all([volumesReady,shadowsReady]).then(()=>{});
   const origin=new THREE.Vector3(),lastSortEye=new THREE.Vector3(Infinity,Infinity,Infinity),sorted=[...clouds];let nearest:THREE.Object3D[]=[];
   const frustum=new THREE.Frustum(),viewProjection=new THREE.Matrix4(),bounds=new THREE.Sphere();
   function update(time:number,delta:number,eye:THREE.Vector3=origin,camera?:THREE.Camera){
-    atmosphere.uAtmosTime.value=time;
+    atmosphere.uAtmosTime.value=time;atmosphere.uSkyShadowOffset.value+=delta*.72;
     for(const cloud of clouds){
       cloud.position.x+=delta*cloud.userData.speed;
       if(cloud.userData.layer==='sky'){
@@ -155,7 +158,7 @@ export function createCloudField(scene:THREE.Scene,atmosphere:AtmosphereUniforms
   }
   update(0,0);
   return {update,ready,get volumeCount(){return geometry.instanceCount;},dispose(){
-    disposed=true;scene.remove(group,mesh);geometry.dispose();material.dispose();shadowMap.dispose();
+    disposed=true;scene.remove(group,mesh);geometry.dispose();material.dispose();shadowMap.dispose();fieldShadows.dispose();
     volumeTexture.dispose();
   }};
 }

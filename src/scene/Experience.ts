@@ -32,13 +32,13 @@ export class Experience {
     this.renderer.info.autoReset=false;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.0;
-    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.VSMShadowMap;
     this.renderer.domElement.setAttribute('aria-label','An endless green plateau, a pink house, and a ladder into the clouds.');
     container.appendChild(this.renderer.domElement);
     this.scene.background=new THREE.Color('#a3c6d0');this.scene.fog=new THREE.FogExp2('#b7c6c4',.00030);
-    const ambient=new THREE.HemisphereLight('#b9cfe3','#6d7b5e',1.20);this.scene.add(ambient);
-    const sun=new THREE.DirectionalLight('#fff2dc',3.35);sun.target.position.set(0,105,-55);sun.position.copy(sun.target.position).addScaledVector(SUN_DIRECTION,330);this.scene.add(sun,sun.target);
-    sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-55;sun.shadow.camera.right=55;sun.shadow.camera.top=55;sun.shadow.camera.bottom=-55;sun.shadow.camera.near=1;sun.shadow.camera.far=600;sun.shadow.normalBias=.035;sun.shadow.bias=-.0001;
+    const ambient=new THREE.HemisphereLight('#c5d7e4','#85907b',1.45);this.scene.add(ambient);
+    const sun=new THREE.DirectionalLight('#fff5e6',2.85);sun.target.position.set(0,105,-55);sun.position.copy(sun.target.position).addScaledVector(SUN_DIRECTION,330);this.scene.add(sun,sun.target);
+    sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-55;sun.shadow.camera.right=55;sun.shadow.camera.top=55;sun.shadow.camera.bottom=-55;sun.shadow.camera.near=1;sun.shadow.camera.far=600;sun.shadow.normalBias=.045;sun.shadow.bias=-.00018;sun.shadow.radius=6;sun.shadow.blurSamples=12;
     this.world=buildWorld(this.scene);
     this.renderer.shadowMap.autoUpdate=false;this.renderer.shadowMap.needsUpdate=true;
     this.camera.position.set(10,139,445);this.camera.lookAt(0,-13,-34);

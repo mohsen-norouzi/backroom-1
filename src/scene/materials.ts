@@ -9,7 +9,7 @@ export function random(seed: number) {
 }
 
 export function grassTexture() {
-  const texture = new THREE.TextureLoader().load('/textures/grass-turf.png');
+  const texture = new THREE.TextureLoader().load('/textures/meadow-turf.png');
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
@@ -27,14 +27,14 @@ float fbm2(vec2 p) { return noise2(p)*.5+noise2(p*2.03)*.25+noise2(p*4.01)*.125+
 
 export function grassMaterial(texture: THREE.Texture, wall = false, dark = false, atmosphere?: AtmosphereUniforms) {
   const mat = new THREE.MeshStandardMaterial({
-    map: texture, roughness: 1, bumpMap: texture, bumpScale: wall ? .14 : .035,
-    color: dark ? '#c7d8b8' : wall ? '#d1dbc3' : '#cad3bd',
+    map: texture, roughness: 1, bumpMap: texture, bumpScale: wall ? .024 : .018,
+    color: dark ? '#e6ece1' : wall ? '#edf0e8' : '#f0f0e6',
   });
   mat.onBeforeCompile = shader => {
     if(atmosphere)Object.assign(shader.uniforms,atmosphere);
     shader.vertexShader = 'varying vec3 vWorld;\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWorld=(modelMatrix*vec4(transformed,1.)).xyz;');
-    const grassUV=wall?'vec2(p.x+p.z,p.y)*.5':'p.xz*.5';
+    const grassUV=wall?'vec2(p.x+p.z,p.y)*.68':'p.xz*.68';
     shader.fragmentShader = 'varying vec3 vWorld;\n' + noise + horizonGLSL + (atmosphere?cloudShadowGLSL:'') + `vec2 grassUVWorld(vec3 p){return ${grassUV};}\n` + shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <bumpmap_pars_fragment>',THREE.ShaderChunk.bumpmap_pars_fragment.replaceAll('vBumpMapUv','grassUVWorld(vWorld)'));
     // Fog is blended in linear light with the exact same sky color as the background.
@@ -47,29 +47,25 @@ export function grassMaterial(texture: THREE.Texture, wall = false, dark = false
     `);
     shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
       vec2 grassUV = grassUVWorld(vWorld);
-      vec4 a = texture2D(map, grassUV);
-      vec4 b = texture2D(map, mat2(.8,-.6,.6,.8)*grassUV*.93+vec2(.37,.71));
-      vec4 c = texture2D(map, mat2(-.6,-.8,.8,-.6)*grassUV*1.07+vec2(.51,.19));
-      float blend = smoothstep(.2,.8,noise2(grassUV*.14));
-      vec4 sampledDiffuseColor = mix(mix(a,b,blend),c,.24);
-      sampledDiffuseColor.rgb=pow(max(sampledDiffuseColor.rgb,vec3(.001)),vec3(.77))*vec3(.94,1.,.96);
-      ${wall?'sampledDiffuseColor.rgb*=vec3(.76,.92,.86);':''}
-      sampledDiffuseColor.rgb=mix(vec3(dot(sampledDiffuseColor.rgb,vec3(.2126,.7152,.0722))),sampledDiffuseColor.rgb,.95);
-      diffuseColor *= sampledDiffuseColor;
-      float mottling = fbm2(vWorld.xz*.018+vWorld.y*.008);
-      diffuseColor.rgb *= .82 + mottling*.40;
-      float meadow=fbm2(vWorld.xz*.009+vec2(vWorld.y*.025,8.));
-      diffuseColor.rgb*=mix(vec3(.78,.90,.86),vec3(1.09,1.05,.87),smoothstep(.25,.72,meadow));
-
-      ${wall ? `float streak = fbm2(vec2((vWorld.x+vWorld.z)*.72,vWorld.y*.16));
-      float fine = noise2(vec2((vWorld.x+vWorld.z)*1.6,vWorld.y*2.4));
-      diffuseColor.rgb *= .64+streak*.3+fine*.7;
-      diffuseColor.rgb *= mix(.90,1.05,smoothstep(-150.,105.,vWorld.y));` : `
-      float variation=fbm2(vWorld.xz*.17);
-      diffuseColor.rgb*=mix(.90,1.05,variation);`}
+      vec4 a=texture2D(map,grassUV);
+      vec4 b=texture2D(map,mat2(.8,-.6,.6,.8)*grassUV+vec2(.73,.28));
+      vec4 sampledDiffuseColor=mix(a,b,smoothstep(.25,.75,noise2(grassUV*.09)));
+      // A second physical scale retains the fibrous character on the immense cliff.
+      float detailDistance=smoothstep(18.,160.,distance(vWorld,cameraPosition));
+      vec3 middleScale=texture2D(map,grassUV*${wall?'.045':'.16'}+vec2(.17,.31)).rgb;
+      sampledDiffuseColor.rgb=mix(sampledDiffuseColor.rgb,middleScale,${wall?'.72':'.36'}*detailDistance);
+      // Preserve blade-scale detail; large black noise used to look like voxel terrain.
+      sampledDiffuseColor.rgb=pow(max(sampledDiffuseColor.rgb,vec3(.001)),vec3(.91));
+      sampledDiffuseColor.rgb*=vec3(.89,1.,1.10);
+      ${wall?'sampledDiffuseColor.rgb*=vec3(.81,1.,1.27);':''}
+      diffuseColor*=sampledDiffuseColor;
+      float meadow=fbm2(vWorld.xz*.012+vec2(vWorld.y*.007,8.));
+      diffuseColor.rgb*=mix(vec3(.91,.96,.96),vec3(1.04,1.025,.96),smoothstep(.22,.74,meadow));
+      ${wall?`float streak=fbm2(vec2((vWorld.x+vWorld.z)*.11,vWorld.y*.025));
+      diffuseColor.rgb*=.94+streak*.12;`:''}
     `);
   };
-  mat.customProgramCacheKey = () => `grass-v7-${wall}-${dark}-${!!atmosphere}`;
+  mat.customProgramCacheKey = () => `grass-v8-${wall}-${dark}-${!!atmosphere}`;
   return mat;
 }
 

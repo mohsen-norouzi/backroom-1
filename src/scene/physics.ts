@@ -1,3 +1,4 @@
+import { cottageRoofHeight, HOUSE_Z } from './houseShape';
 export const TOP = 105;
 // Render edges are well beyond the far clip plane from every reachable position.
 export const EDGE = 30000;
@@ -12,10 +13,8 @@ export function terrainHeight(x: number, z: number) {
 // Walkers fall onto the surface below them, including the sloping house roof.
 export function standingHeight(x:number,z:number){
   let height=terrainHeight(x,z);
-  if(Math.abs(x)<=7.15&&Math.abs(z+56)<=6.2)
-    height=Math.max(height,TOP+12.2-Math.abs(x)*4.9/7.15+.125*Math.hypot(1,4.9/7.15));
-  if(Math.abs(x)<=2&&Math.abs(z+50.3)<=1.25)
-    height=Math.max(height,TOP+6.7-Math.abs(x)*.8+.125*Math.hypot(1,.8));
+  const roof=cottageRoofHeight(x,z-HOUSE_Z);
+  if(roof)height=Math.max(height,TOP+roof);
   return height;
 }
 export function solidAt(x:number,y:number,z:number) {

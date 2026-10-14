@@ -1,36 +1,56 @@
-import { TOP } from './physics';
-import { HOUSE_Z } from './houseShape';
-import { createWorldEcho } from './ambience';
+import { HOUSE_SONG_POSITION, HOUSE_REFLECTIONS, HOUSE_ECHO_DELAYS, houseAcousticMix, houseRoomSamples, landscapeEchoSamples } from './houseAcoustics';
+import type { Point } from './houseAcoustics';
+export { HOUSE_SONG_POSITION, songMixAtDistance } from './houseAcoustics';
 
-type Point={x:number;y:number;z:number};
-export const HOUSE_SONG_POSITION={x:0,y:TOP+3.8,z:HOUSE_Z};
-
-export function songMixAtDistance(distance:number){
-  const proximity=1/(1+Math.pow(Math.max(0,distance)/130,1.1));
-  return {
-    // Keep a faint, still-directional signal at the far reaches of the field.
-    gain:.024+.396*proximity,
-    cutoff:1250+6250*proximity,
-  };
-}
-
-// One physical emitter. Every route, including the faint outdoor echo,
-// passes through this panner; nothing plays directly into the listener's headphones.
 export function createHouseEmitter(ctx:BaseAudioContext,source:AudioNode,output:AudioNode){
-  const mono=ctx.createGain();mono.channelCount=1;mono.channelCountMode='explicit';mono.channelInterpretation='speakers';
-  const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.Q.value=.45;
-  const dry=ctx.createGain();dry.gain.value=.94;
-  const panner=ctx.createPanner();panner.panningModel='HRTF';panner.distanceModel='inverse';
-  panner.channelCount=1;panner.channelCountMode='explicit';
-  // Distance has a gentle floor for audibility; it never changes the source's position.
-  panner.rolloffFactor=0;panner.refDistance=1;panner.maxDistance=60000;
-  panner.positionX.value=HOUSE_SONG_POSITION.x;panner.positionY.value=HOUSE_SONG_POSITION.y;panner.positionZ.value=HOUSE_SONG_POSITION.z;
-  const level=ctx.createGain();level.gain.value=0;
-  source.connect(mono);mono.connect(filter);
-  filter.connect(dry);dry.connect(panner);
-  const echo=createWorldEcho(ctx,filter,panner,.16);
-  panner.connect(level);level.connect(output);
-  return {panner,level,filter,dispose(){echo.dispose();for(const node of [mono,filter,dry,panner,level])node.disconnect();}};
+  const owned:AudioNode[]=[];
+  const own=<T extends AudioNode>(node:T)=>{owned.push(node);return node;};
+  function convolution(samples:Float32Array){
+    const convolver=own(ctx.createConvolver());convolver.normalize=false;
+    const buffer=ctx.createBuffer(1,samples.length,ctx.sampleRate);buffer.getChannelData(0).set(samples);convolver.buffer=buffer;
+    return convolver;
+  }
+  function lowpass(cutoff:number){const node=own(ctx.createBiquadFilter());node.type='lowpass';node.frequency.value=cutoff;node.Q.value=.45;return node;}
+  function spatial(position:Point,reflection=false){
+    const panner=own(ctx.createPanner());panner.panningModel=reflection?'equalpower':'HRTF';panner.distanceModel='inverse';
+    panner.channelCount=1;panner.channelCountMode='explicit';
+    panner.rolloffFactor=0;panner.refDistance=1;panner.maxDistance=60000;
+    panner.positionX.value=position.x;panner.positionY.value=position.y;panner.positionZ.value=position.z;
+    return panner;
+  }
+  const mono=own(ctx.createGain());mono.channelCount=1;mono.channelCountMode='explicit';mono.channelInterpretation='speakers';
+  const room=own(ctx.createGain()),dry=own(ctx.createGain());dry.gain.value=.88;
+  const roomConvolver=convolution(houseRoomSamples(ctx.sampleRate)),roomWet=own(ctx.createGain());roomWet.gain.value=.18;
+  source.connect(mono);mono.connect(dry);dry.connect(room);
+  mono.connect(roomConvolver);roomConvolver.connect(roomWet);roomWet.connect(room);
+
+  // Early room reflections and the direct signal both leave the same interior source.
+  // One consistent enclosure filter covers the closed walls, door and windows.
+  const filter=lowpass(1000),panner=spatial(HOUSE_SONG_POSITION),level=own(ctx.createGain());level.gain.value=0;
+  room.connect(filter);filter.connect(panner);panner.connect(level);level.connect(output);
+
+  // Outdoor sound escapes the front of the house and reaches two fixed cliff edges.
+  // Reflections are spatialized separately, so the landscape feels large without
+  // adding an unlocated stereo soundtrack or moving the original sound source.
+  const escapeFilter=lowpass(2600),tail=convolution(landscapeEchoSamples(ctx.sampleRate));
+  room.connect(escapeFilter);escapeFilter.connect(tail);
+  const reflections=HOUSE_REFLECTIONS.map((position,index)=>{
+    const delay=own(ctx.createDelay(1)),filter=lowpass(2100),panner=spatial(position,true),level=own(ctx.createGain());
+    level.gain.value=0;delay.delayTime.value=HOUSE_ECHO_DELAYS[index];
+    tail.connect(delay);delay.connect(filter);filter.connect(panner);panner.connect(level);level.connect(output);
+    return {delay,filter,panner,level};
+  });
+  function update(position:Point,t=ctx.currentTime){
+    const mix=houseAcousticMix(position);
+    level.gain.setTargetAtTime(mix.directGain,t,.3);
+    filter.frequency.setTargetAtTime(mix.directCutoff,t,.45);
+    reflections.forEach((reflection,i)=>{
+      const setting=mix.reflections[i];
+      reflection.level.gain.setTargetAtTime(setting.gain,t,.65);
+      reflection.filter.frequency.setTargetAtTime(setting.cutoff,t,.6);
+    });
+  }
+  return {panner,level,filter,reflections,update,dispose(){owned.forEach(node=>node.disconnect());}};
 }
 
 export class HouseSong {
@@ -67,10 +87,7 @@ export class HouseSong {
       [listener.forwardX,forward.x],[listener.forwardY,forward.y],[listener.forwardZ,forward.z],
       [listener.upX,up.x],[listener.upY,up.y],[listener.upZ,up.z],
     ] as const)param.setTargetAtTime(value,t,.015);
-    const distance=Math.hypot(position.x-HOUSE_SONG_POSITION.x,position.y-HOUSE_SONG_POSITION.y,position.z-HOUSE_SONG_POSITION.z);
-    const mix=songMixAtDistance(distance);
-    this.emitter.level.gain.setTargetAtTime(mix.gain,t,.22);
-    this.emitter.filter.frequency.setTargetAtTime(mix.cutoff,t,.35);
+    this.emitter.update(position,t);
   }
 
   pause(){

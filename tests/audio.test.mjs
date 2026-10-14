@@ -10,7 +10,7 @@ test('local grass and alternating ladder recordings only trigger during movement
  globalThis.Audio=class {async play(){}pause(){}removeAttribute(){}load(){}remove(){}};
  globalThis.AudioContext=class {
   currentTime=0;sampleRate=44100;destination={};
-  createMediaElementSource(){return node();}createConvolver(){return node();}
+  createMediaElementSource(){return node();}createConvolver(){return node();}createDelay(){return {...node(),delayTime:param()};}
   createPanner(){return {...node(),positionX:param(),positionY:param(),positionZ:param()};}
   createGain(){return node();}createBiquadFilter(){return node();}createOscillator(){return node();}createStereoPanner(){return node();}
   createBuffer(channels,length){return {getChannelData:()=>new Float32Array(length)};}

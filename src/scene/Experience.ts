@@ -18,12 +18,15 @@ export class Experience {
   private composer:EffectComposer;
   private film:ShaderPass;
   private world:ReturnType<typeof buildWorld>;
-  private audio=new Soundscape();
+  private audio:Soundscape;
+  private audioForward=new THREE.Vector3();
+  private audioUp=new THREE.Vector3();
   private frame=0;private lastTime=0;private elapsed=0;private entered=false;private disposed=false;
   private resizeObserver:ResizeObserver;
   private probeFrames:number[]=[];private probeLast=0;private probeReport=0;private qualityChange=0;private pixelRatio=1;
   private idleTime=0;private intro:gsap.core.Tween;
   constructor(private container:HTMLElement,callbacks:{onReady:()=>void;onMode:(mode:Mode)=>void;onClimb:(climbing:boolean)=>void;onPause:()=>void;onError:(message:string)=>void}){
+    this.audio=new Soundscape(container);
     this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
     this.renderer.setPixelRatio(1);
     this.renderer.info.autoReset=false;
@@ -96,7 +99,11 @@ export class Experience {
       this.idleTime+=dt;this.camera.position.x=5+Math.sin(this.idleTime*.045)*3;this.camera.position.y=130+Math.sin(this.idleTime*.12)*.7;this.camera.lookAt(0,-13,-34);
     }
     this.navigation.update(dt);this.world.update(this.elapsed,dt,this.camera);
-    if(this.navigation.active)this.audio.update(this.navigation.speed,this.camera.position.y,this.navigation.mode==='walk',this.navigation.grounded,this.elapsed,this.navigation.climbing);
+    if(this.navigation.active){
+      this.camera.getWorldDirection(this.audioForward);this.audioUp.set(0,1,0).applyQuaternion(this.camera.quaternion);
+      this.audio.updateListener(this.camera.position,this.audioForward,this.audioUp);
+      this.audio.update(this.navigation.speed,this.camera.position.y,this.navigation.mode==='walk',this.navigation.grounded,this.elapsed,this.navigation.climbing);
+    }
     this.film.uniforms.uTime.value=this.elapsed;
     this.renderer.info.reset();this.composer.render();
     const interval=now-this.probeLast;

@@ -1,4 +1,5 @@
 import { windSettings } from './tuning';
+import { HouseSong } from './music';
 
 // Samples are supplied locally; audio only starts after entering the scene.
 export class Soundscape {
@@ -13,11 +14,20 @@ export class Soundscape {
   private previousTime = 0;
   private wasClimbing = false;
   private rightFoot = false;
+  private song: HouseSong | null = null;
+
+  constructor(private host?:HTMLElement){}
 
   async start() {
-    if (this.ctx) { await this.ctx.resume(); this.master?.gain.setTargetAtTime(.65,this.ctx.currentTime,.7); return; }
+    if (this.ctx) {
+      const resumed=this.ctx.resume();
+      void this.song?.play().catch(error=>console.warn('House song could not resume:',error));
+      this.master?.gain.setTargetAtTime(.65,this.ctx.currentTime,.7);await resumed;return;
+    }
     const ctx=new AudioContext(); this.ctx=ctx;
     const master=ctx.createGain();master.gain.value=0;master.connect(ctx.destination);this.master=master;
+    this.song=new HouseSong(ctx,master,this.host);
+    void this.song.play().catch(error=>console.warn('House song could not play:',error));
     const buffer=ctx.createBuffer(1,ctx.sampleRate*4,ctx.sampleRate), data=buffer.getChannelData(0);
     let last=0;
     for(let i=0;i<data.length;i++){const white=Math.random()*2-1;last=(last+.025*white)/1.025;data[i]=last*6;}
@@ -37,6 +47,10 @@ export class Soundscape {
         if(this.ctx===ctx)this.samples.set(name,sample);
       } catch { /* Ambience remains available if a local sample fails to load. */ }
     }));
+  }
+
+  updateListener(position:{x:number;y:number;z:number},forward:{x:number;y:number;z:number},up:{x:number;y:number;z:number}){
+    this.song?.update(position,forward,up);
   }
 
   update(speed:number,altitude:number,walking:boolean,grounded:boolean,time:number,climbing=false) {
@@ -68,7 +82,8 @@ export class Soundscape {
   }
   pause(){
     if(this.ctx&&this.master)this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.15);
+    this.song?.pause();
     this.stepDistance=0;this.previousTime=0;
   }
-  dispose(){this.nodes.forEach(n=>n.stop());this.footsteps.forEach(n=>n.stop());void this.ctx?.close();this.ctx=null;}
+  dispose(){this.song?.dispose();this.song=null;this.nodes.forEach(n=>n.stop());this.footsteps.forEach(n=>n.stop());void this.ctx?.close();this.ctx=null;}
 }

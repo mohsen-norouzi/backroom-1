@@ -22,7 +22,7 @@ Use Bun 1.3.14 or newer. Open the local URL shown by Vite. Click anywhere to ent
 
 The entrance camera drifts until you enter. Reduced-motion preferences disable this drift. Sound starts only after interaction and fades when paused or the tab loses focus.
 
-Built with React, Three.js, Tailwind CSS, GSAP, and Web Audio. The cloud volumes, terrain, and quiet wind are procedural. Turf uses a locally generated photographic texture. Footsteps use the three recordings in `public/audio/`; ladder steps alternate left and right. There are no remote asset requests. The house is an exterior landmark. Nothing is deployed.
+Built with React, Three.js, Tailwind CSS, GSAP, and Web Audio. The cloud volumes, terrain, and quiet wind are procedural. Turf uses a locally generated photographic texture. Footsteps use the three recordings in `public/audio/`; ladder steps alternate left and right. The supplied `song.wav` plays on a loop from inside the house using a streamed `house-song.mp3` copy. Its clear signal follows the house in 3D as you turn, grows louder nearby, and becomes softer and more muffled with distance. A quiet stereo layer with a short diffuse reverb remains audible throughout the world. Pausing fades and stops the song; re-entering resumes its playhead. The original WAV is preserved. There are no remote asset requests. The house is an exterior landmark. Nothing is deployed.
 
 ```sh
 bun test       # terrain, collisions, cloud clearance, and ladder movement

@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import { Soundscape } from '../src/scene/audio.ts';
 
 test('local grass and alternating ladder recordings only trigger during movement',async()=>{
- const previousAudio=globalThis.AudioContext,previousFetch=globalThis.fetch;
+ const previousAudio=globalThis.AudioContext,previousMedia=globalThis.Audio,previousFetch=globalThis.fetch;
  const played=[],requested=[];
  const param=()=>({value:0,setTargetAtTime(){}});
  const node=()=>({connect(){},disconnect(){},start(){},stop(){},gain:param(),frequency:param(),Q:param(),pan:param(),playbackRate:param()});
+ globalThis.Audio=class {async play(){}pause(){}removeAttribute(){}load(){}remove(){}};
  globalThis.AudioContext=class {
   currentTime=0;sampleRate=44100;destination={};
+  createMediaElementSource(){return node();}createConvolver(){return node();}
+  createPanner(){return {...node(),positionX:param(),positionY:param(),positionZ:param()};}
   createGain(){return node();}createBiquadFilter(){return node();}createOscillator(){return node();}createStereoPanner(){return node();}
   createBuffer(channels,length){return {getChannelData:()=>new Float32Array(length)};}
   createBufferSource(){const source=node();source.start=()=>{if(source.buffer?.sample)played.push(source.buffer.sample);};return source;}
@@ -29,6 +32,7 @@ test('local grass and alternating ladder recordings only trigger during movement
  } finally {
   sound.dispose();
   if(previousAudio===undefined)delete globalThis.AudioContext;else globalThis.AudioContext=previousAudio;
+  if(previousMedia===undefined)delete globalThis.Audio;else globalThis.Audio=previousMedia;
   globalThis.fetch=previousFetch;
  }
 });

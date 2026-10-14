@@ -131,7 +131,7 @@ export function buildWorld(scene: THREE.Scene) {
     ready:clouds.ready,
     get volumeCount(){return clouds.volumeCount;},
     update(time:number,delta:number,camera:THREE.Camera){
-      clouds.update(time,delta,camera.position);livingGrass.update(camera.position);sky.mesh.position.copy(camera.position);
+      clouds.update(time,delta,camera.position,camera);livingGrass.update(camera.position);sky.mesh.position.copy(camera.position);
     },
     dispose(){
       group.traverse(object=>{if(object instanceof THREE.InstancedMesh)object.dispose();});

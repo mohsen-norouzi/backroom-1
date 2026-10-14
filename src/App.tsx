@@ -33,7 +33,10 @@ export default function App(){
     <div ref={overlay} className={`entrance absolute inset-0 ${active?'pointer-events-none':''}`} aria-hidden={active}>
       <header className="absolute inset-x-0 top-0 flex items-start justify-between px-7 py-7 md:px-12 md:py-10">
         <div className="identity flex items-center gap-3"><span className="place-symbol" aria-hidden="true"><i/><i/><i/></span><span>FIELD NO. 001</span></div>
-        <span className="edition hidden sm:block">A PLACE OUTSIDE OF TIME</span>
+        <div className="text-right">
+          <span className="edition hidden sm:block">A PLACE OUTSIDE OF TIME</span>
+          <p className="creator-credit sm:mt-2">made by mohsenized</p>
+        </div>
       </header>
       <div className="title-block absolute left-7 bottom-[22%] md:left-12 md:bottom-[19%]">
         <p className="eyebrow mb-5">YOU HAVE BEEN HERE BEFORE.</p>
@@ -42,7 +45,7 @@ export default function App(){
       </div>
       <footer className="absolute bottom-7 inset-x-7 flex items-end justify-between gap-6 md:bottom-10 md:inset-x-12">
         <div>
-          <p className="enter-prompt">{error?'A MOMENT OF STILLNESS':ready?(visited?'RETURN TO THE FIELD':'CLICK ANYWHERE TO ENTER'):'FINDING SOMEWHERE QUIET'}<span className="enter-arrow" aria-hidden="true">↗</span></p>
+          <p className={`enter-prompt ${ready&&!error?'enter-prompt--ready':''}`}>{error?'A MOMENT OF STILLNESS':ready?(visited?'RETURN TO THE FIELD':'CLICK ANYWHERE TO ENTER'):'FINDING SOMEWHERE QUIET'}<span className="enter-arrow" aria-hidden="true">↗</span></p>
           <p className="controls mt-3">{coarse?'Left thumb to move · right thumb to look · double tap to walk':'WASD move · mouse look · F walk / fly'}</p>
         </div>
         <div className="sound-note hidden sm:flex items-center gap-2.5"><span className="sound-wave" aria-hidden="true"><i/><i/><i/><i/></span><span>BEST WITH SOUND</span></div>

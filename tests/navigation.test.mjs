@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {terrainHeight,solidAt,resolveHorizontal,safeLanding,TOP,FLOOR,EYE_HEIGHT} from '../src/scene/physics.ts';
+import {terrainHeight,solidAt,resolveHorizontal,TOP,FLOOR} from '../src/scene/physics.ts';
 test('the notch is a real drop with a solid back wall',()=>{
  assert.equal(terrainHeight(0,-10),FLOOR);assert.equal(terrainHeight(0,-38),TOP);assert.equal(terrainHeight(5,-10),TOP);assert.equal(terrainHeight(0,10),FLOOR);
 });
@@ -11,19 +11,9 @@ test('walkers cannot cross the house, including with large frame steps',()=>{
 test('flying below the plateau cannot tunnel through its walls',()=>{
  const p=resolveHorizontal(0,30,20,0,-80);assert.ok(p.z>-37);assert.equal(terrainHeight(p.x,p.z),FLOOR);
 });
-test('switching to walking lands safely on the field',()=>{
- for(const p of [{x:0,z:100},{x:0,z:-56},{x:0,z:-10}]){
-  const landing=safeLanding(p.x,p.z);assert.equal(terrainHeight(landing.x,landing.z),TOP);assert.equal(solidAt(landing.x,landing.y,landing.z),false);assert.equal(landing.y,TOP+EYE_HEIGHT);
- }
- assert.deepEqual(safeLanding(30,-80),{x:30,y:TOP+EYE_HEIGHT,z:-80});
-});
-
 test('the upper field continues beyond the former side and back edges',()=>{
  for(const [x,z] of [[1000,-50],[-1000,-50],[0,-1600],[4800,-4800],[-4800,-4800]]) {
   assert.equal(terrainHeight(x,z),TOP);
-  const landing=safeLanding(x,z);
-  assert.equal(landing.x,x);assert.equal(landing.z,z);
-  assert.equal(landing.y,TOP+EYE_HEIGHT);
   assert.equal(solidAt(x,TOP-1,z),true);
  }
 });

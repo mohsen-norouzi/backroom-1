@@ -6,13 +6,13 @@ import type { Mode } from './scene/navigation';
 export default function App(){
   const host=useRef<HTMLDivElement>(null),experience=useRef<Experience|null>(null),overlay=useRef<HTMLDivElement>(null);
   const [ready,setReady]=useState(false),[active,setActive]=useState(false),[visited,setVisited]=useState(false);
-  const [dragLook,setDragLook]=useState(false),[mode,setMode]=useState<Mode>('fly'),[error,setError]=useState(''),[hint,setHint]=useState(false),[fading,setFading]=useState(false),[climbing,setClimbing]=useState(false);
+  const [dragLook,setDragLook]=useState(false),[mode,setMode]=useState<Mode>('fly'),[error,setError]=useState(''),[hint,setHint]=useState(false),[climbing,setClimbing]=useState(false);
   const coarse=matchMedia('(pointer: coarse)').matches;
   useEffect(()=>{
     let disposed=false;
     const timer=window.setTimeout(()=>{
       if(!host.current||disposed)return;
-      try{experience.current=new Experience(host.current,{onReady:()=>setReady(true),onMode:setMode,onClimb:setClimbing,onPause:()=>setActive(false),onTransition:setFading,onError:setError});}
+      try{experience.current=new Experience(host.current,{onReady:()=>setReady(true),onMode:setMode,onClimb:setClimbing,onPause:()=>setActive(false),onError:setError});}
       catch(e){setError(e instanceof Error?e.message:'This experience needs a browser with WebGL 2.');}
     },40);
     return()=>{disposed=true;clearTimeout(timer);experience.current?.dispose();experience.current=null;};
@@ -30,7 +30,6 @@ export default function App(){
   }
   return <main className="relative h-dvh w-full overflow-hidden bg-[#a8c0bd] text-[#f4f2df]">
     <div ref={host} className="absolute inset-0" />
-    <div className={`mode-fade ${fading?'mode-fade--visible':''}`} aria-hidden="true" />
     <div className={`arrival ${ready?'arrival--ready':''}`} aria-hidden="true" />
     <div ref={overlay} className={`entrance absolute inset-0 ${active?'pointer-events-none':''}`} aria-hidden={active}>
       <header className="absolute inset-x-0 top-0 flex items-start justify-between px-7 py-7 md:px-12 md:py-10">
@@ -52,8 +51,7 @@ export default function App(){
       <button type="button" className="enter-target absolute inset-0 h-full w-full cursor-pointer" onClick={enter} disabled={!ready||active} tabIndex={active?-1:0} aria-label={visited?'Resume exploring The Quiet':'Enter The Quiet. WASD to move, mouse to look, F to walk or fly.'}/>
     </div>
     {active&&<>
-      {mode==='fly'&&<div className="reticle pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" aria-hidden="true"/>}
-      <button type="button" className="session-status mode-toggle absolute bottom-7 left-7 flex items-center gap-2.5 md:bottom-10 md:left-12" onClick={()=>experience.current?.navigation.toggleMode()} onKeyDown={e=>{if(e.code==='Space'||e.code==='Enter')e.stopPropagation();}} aria-label={mode==='fly'?'Switch to walking mode':'Switch to flying mode'} aria-keyshortcuts="F"><span className="status-dot"/>{climbing?'CLIMB':mode==='fly'?'FLY':'WALK'}<span className="mode-switch-hint">{climbing?'W / S · E LET GO':coarse?'TAP TO SWITCH':mode==='fly'?'F TO WALK':'F TO FLY'}</span></button>
+      <button type="button" className="session-status mode-toggle absolute bottom-7 left-7 flex items-center gap-2.5 md:bottom-10 md:left-12" onClick={()=>experience.current?.navigation.toggleMode()} onKeyDown={e=>{if(e.code==='Space'||e.code==='Enter')e.stopPropagation();}} aria-label={mode==='fly'?'Switch to walking mode':'Switch to flying mode'} aria-keyshortcuts="F"><span className="status-dot"/>{climbing?'CLIMB':mode==='fly'?'FLY':'WALK'}<span className="mode-switch-hint">{climbing?'W / S · E LET GO':coarse?'TAP TO SWITCH':<><kbd className="mode-key">F</kbd><span>{mode==='fly'?'WALK':'FLY'}</span></>}</span></button>
       <div className={`session-hint pointer-events-none absolute bottom-7 right-7 text-right md:bottom-10 md:right-12 ${hint?'is-visible':''}`}>{coarse?'DRAG TO EXPLORE · DOUBLE TAP TO WALK':dragLook?'DRAG look · WASD move · SHIFT faster · ESC pause':mode==='fly'?'SPACE / E rise · Q descend · SHIFT faster · F walk · ESC pause':'E ladder · W / S climb · SHIFT run · F fly · ESC pause'}</div>
     </>}
     {error&&<p role="alert" className="error-message absolute left-1/2 top-7 z-20 max-w-[90%] -translate-x-1/2 rounded bg-[#263c36]/80 px-5 py-3 text-center text-sm">{error}</p>}

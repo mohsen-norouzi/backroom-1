@@ -10,7 +10,7 @@ test('actual movement holds a ladder grip during mouse look, strafe, pause and r
  doc.pointerLockElement=canvas;doc.hidden=false;
  globalThis.document=doc;globalThis.window=win;globalThis.matchMedia=()=>({matches:false});
  const camera=new THREE.PerspectiveCamera();camera.position.set(.2,20,LADDER_CAMERA_Z+.3);
- const states=[],nav=new Navigation(camera,canvas,()=>{},()=>{},()=>{},value=>states.push(value));
+ const states=[],nav=new Navigation(camera,canvas,()=>{},()=>{},value=>states.push(value));
  const event=(type,properties)=>{const e=new Event(type);for(const [key,value] of Object.entries(properties))Object.defineProperty(e,key,{value});doc.dispatchEvent(e);};
  const key=(type,code)=>event(type,{code,repeat:false});
  const advance=(frames)=>{for(let i=0;i<frames;i++)nav.update(1/60);};

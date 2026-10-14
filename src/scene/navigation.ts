@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import gsap from 'gsap';
-import { EYE_HEIGHT, FLOOR, terrainHeight, resolveHorizontal, safeLanding, solidAt } from './physics';
+import { EYE_HEIGHT, FLOOR, standingHeight, resolveHorizontal, solidAt } from './physics';
 import { movementSpeed } from './tuning';
 import { LadderController } from './ladder';
 export type Mode='fly'|'walk';
@@ -10,11 +9,10 @@ export class Navigation {
   private grabRequested=false;
   get climbing(){return this.ladder.attached;}
   private keys=new Set<string>();private velocity=new THREE.Vector3();private yaw=0;private pitch=0;
-  private modeTransition:gsap.core.Timeline|null=null;
-  private vertical=0;private transitioning=false;private stepPhase=0;
+  private vertical=0;private stepPhase=0;
   private pointers=new Map<number,{x:number;y:number;startX:number;startY:number;side:'move'|'look'}>();
   private touchMove={x:0,y:0};private lastTap=0;
-  constructor(private camera:THREE.PerspectiveCamera,private canvas:HTMLCanvasElement,private onMode:(mode:Mode)=>void,private onPause:()=>void,private onTransition:(fading:boolean)=>void,private onClimb:(climbing:boolean)=>void=()=>{}){
+  constructor(private camera:THREE.PerspectiveCamera,private canvas:HTMLCanvasElement,private onMode:(mode:Mode)=>void,private onPause:()=>void,private onClimb:(climbing:boolean)=>void=()=>{}){
     this.syncAngles();
     document.addEventListener('keydown',this.keyDown);document.addEventListener('keyup',this.keyUp);document.addEventListener('mousemove',this.mouseMove);
     document.addEventListener('pointerlockchange',this.lockChange);window.addEventListener('blur',this.blur);
@@ -60,28 +58,16 @@ export class Navigation {
   };
   private pointerUp=(e:PointerEvent)=>{const p=this.pointers.get(e.pointerId);if(p?.side==='move')this.touchMove={x:0,y:0};this.pointers.delete(e.pointerId);};
   toggleMode(){
-    if(this.transitioning)return;
-    this.ladder.reset();this.onClimb(false);
-    this.mode=this.mode==='fly'?'walk':'fly';this.onMode(this.mode);this.velocity.set(0,0,0);this.vertical=0;
-    if(this.mode==='walk'){
-      this.transitioning=true;
-      const landing=safeLanding(this.camera.position.x,this.camera.position.z);
-      const relocated=Math.hypot(landing.x-this.camera.position.x,landing.z-this.camera.position.z)>2;
-      this.onTransition(true);
-      // A gentle fade avoids racing the camera hundreds of metres to the field.
-      this.modeTransition=gsap.timeline()
-        .call(()=>{
-          this.camera.position.set(landing.x,landing.y,landing.z);
-          if(relocated){this.yaw=Math.atan2(landing.x,landing.z+56);this.pitch=Math.atan2(2.3,Math.hypot(landing.x,landing.z+56));}
-          this.camera.rotation.set(this.pitch,this.yaw,0,'YXZ');
-        },[],.45)
-        .call(()=>this.onTransition(false),[],.55)
-        .call(()=>{this.transitioning=false;this.grounded=true;},[],1);
-    }
+    this.ladder.reset();this.grabRequested=false;this.onClimb(false);
+    this.mode=this.mode==='fly'?'walk':'fly';
+    this.velocity.set(0,0,0);this.vertical=0;
+    // Switching mode never changes position or look direction. Gravity starts here.
+    this.grounded=this.mode==='walk'&&this.camera.position.y<=standingHeight(this.camera.position.x,this.camera.position.z)+EYE_HEIGHT+.01;
+    this.onMode(this.mode);
   }
 
   update(dt:number){
-    if(!this.active||this.transitioning){this.speed=0;return;}
+    if(!this.active){this.speed=0;return;}
     const forward=new THREE.Vector3(-Math.sin(this.yaw),0,-Math.cos(this.yaw));
     if(this.mode==='fly')forward.set(-Math.sin(this.yaw)*Math.cos(this.pitch),Math.sin(this.pitch),-Math.cos(this.yaw)*Math.cos(this.pitch));
     const right=new THREE.Vector3(Math.cos(this.yaw),0,-Math.sin(this.yaw));
@@ -114,11 +100,11 @@ export class Navigation {
     position.x=resolved.x;position.z=resolved.z;
     if(this.mode==='fly'){
       const nextY=position.y+this.velocity.y*dt;
-      if(!solidAt(position.x,nextY-.7,position.z))position.y=Math.max(terrainHeight(position.x,position.z)+EYE_HEIGHT,nextY);
+      if(!solidAt(position.x,nextY-.7,position.z))position.y=Math.max(standingHeight(position.x,position.z)+EYE_HEIGHT,nextY);
       this.grounded=false;
     }else{
-      this.vertical-=18*dt;position.y+=this.vertical*dt;
-      const floor=terrainHeight(position.x,position.z)+EYE_HEIGHT;
+      this.vertical=Math.max(-48,this.vertical-18*dt);position.y+=this.vertical*dt;
+      const floor=standingHeight(position.x,position.z)+EYE_HEIGHT;
       if(position.y<=floor){position.y=floor;this.vertical=0;this.grounded=true;}else this.grounded=false;
     }
     position.y=THREE.MathUtils.clamp(position.y,FLOOR+EYE_HEIGHT,1100);position.x=THREE.MathUtils.clamp(position.x,-5000,5000);position.z=THREE.MathUtils.clamp(position.z,-5000,5000);
@@ -127,7 +113,6 @@ export class Navigation {
     this.camera.rotation.set(this.pitch+bob,this.yaw,this.mode==='fly'?-this.velocity.dot(right)*.00025:0,'YXZ');
   }
   dispose(){
-    this.modeTransition?.kill();gsap.killTweensOf(this.camera.position);gsap.killTweensOf(this);
     document.removeEventListener('keydown',this.keyDown);document.removeEventListener('keyup',this.keyUp);document.removeEventListener('mousemove',this.mouseMove);document.removeEventListener('pointerlockchange',this.lockChange);window.removeEventListener('blur',this.blur);document.removeEventListener('visibilitychange',this.visibility);
     this.canvas.removeEventListener('pointerdown',this.pointerDown);this.canvas.removeEventListener('pointermove',this.pointerMove);this.canvas.removeEventListener('pointerup',this.pointerUp);this.canvas.removeEventListener('pointercancel',this.pointerUp);
   }

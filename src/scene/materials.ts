@@ -27,8 +27,8 @@ float fbm2(vec2 p) { return noise2(p)*.5+noise2(p*2.03)*.25+noise2(p*4.01)*.125+
 
 export function grassMaterial(texture: THREE.Texture, wall = false, dark = false, atmosphere?: AtmosphereUniforms) {
   const mat = new THREE.MeshStandardMaterial({
-    map: texture, roughness: 1, bumpMap: texture, bumpScale: wall ? .07 : .025,
-    color: dark ? '#97a486' : wall ? '#b1b8a0' : '#b3b9a2',
+    map: texture, roughness: 1, bumpMap: texture, bumpScale: wall ? .14 : .035,
+    color: dark ? '#c7d8b8' : wall ? '#d1dbc3' : '#cad3bd',
   });
   mat.onBeforeCompile = shader => {
     if(atmosphere)Object.assign(shader.uniforms,atmosphere);
@@ -40,8 +40,9 @@ export function grassMaterial(texture: THREE.Texture, wall = false, dark = false
     // Fog is blended in linear light with the exact same sky color as the background.
     shader.fragmentShader=shader.fragmentShader.replace('#include <fog_fragment>','');
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+      ${atmosphere?'outgoingLight -= reflectedLight.directDiffuse * (1.-cloudShade(vWorld));':''}
       vec3 viewRay=vWorld-cameraPosition;
-      outgoingLight=mix(outgoingLight,atmosphereColor(viewRay),terrainHaze(viewRay));
+      outgoingLight=mix(outgoingLight,atmosphereColor(viewRay),${wall?'terrainHaze':'fieldHaze'}(viewRay));
       #include <opaque_fragment>
     `);
     shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
@@ -51,19 +52,24 @@ export function grassMaterial(texture: THREE.Texture, wall = false, dark = false
       vec4 c = texture2D(map, mat2(-.6,-.8,.8,-.6)*grassUV*1.07+vec2(.51,.19));
       float blend = smoothstep(.2,.8,noise2(grassUV*.14));
       vec4 sampledDiffuseColor = mix(mix(a,b,blend),c,.24);
+      sampledDiffuseColor.rgb=pow(max(sampledDiffuseColor.rgb,vec3(.001)),vec3(.77))*vec3(.94,1.,.96);
+      ${wall?'sampledDiffuseColor.rgb*=vec3(.76,.92,.86);':''}
+      sampledDiffuseColor.rgb=mix(vec3(dot(sampledDiffuseColor.rgb,vec3(.2126,.7152,.0722))),sampledDiffuseColor.rgb,.95);
       diffuseColor *= sampledDiffuseColor;
       float mottling = fbm2(vWorld.xz*.018+vWorld.y*.008);
-      diffuseColor.rgb *= .88 + mottling*.27;
-      ${atmosphere?'diffuseColor.rgb *= cloudShade(vWorld);':''}
-      ${wall ? `float streak = fbm2(vec2((vWorld.x+vWorld.z)*3.2,vWorld.y*.12));
-      float fine = noise2(vec2((vWorld.x+vWorld.z)*.7,vWorld.y*.9));
-      diffuseColor.rgb *= .86+streak*.18+fine*.13;
-      diffuseColor.rgb *= mix(.73,1.05,smoothstep(-150.,105.,vWorld.y));` : `
+      diffuseColor.rgb *= .82 + mottling*.40;
+      float meadow=fbm2(vWorld.xz*.009+vec2(vWorld.y*.025,8.));
+      diffuseColor.rgb*=mix(vec3(.78,.90,.86),vec3(1.09,1.05,.87),smoothstep(.25,.72,meadow));
+
+      ${wall ? `float streak = fbm2(vec2((vWorld.x+vWorld.z)*.72,vWorld.y*.16));
+      float fine = noise2(vec2((vWorld.x+vWorld.z)*1.6,vWorld.y*2.4));
+      diffuseColor.rgb *= .64+streak*.3+fine*.7;
+      diffuseColor.rgb *= mix(.90,1.05,smoothstep(-150.,105.,vWorld.y));` : `
       float variation=fbm2(vWorld.xz*.17);
       diffuseColor.rgb*=mix(.90,1.05,variation);`}
     `);
   };
-  mat.customProgramCacheKey = () => `grass-v4-${wall}-${dark}-${!!atmosphere}`;
+  mat.customProgramCacheKey = () => `grass-v7-${wall}-${dark}-${!!atmosphere}`;
   return mat;
 }
 
@@ -74,7 +80,15 @@ export function createSky() {
     fragmentShader: `${horizonGLSL}
       varying vec3 vDir;
       void main(){
-        gl_FragColor=vec4(atmosphereColor(vDir),1.);
+        vec3 direction=normalize(vDir);
+        float angle=length(direction-sunDirection);
+        float edge=max(fwidth(angle),.0012);
+        float disc=1.-smoothstep(.008-edge,.008+edge,angle);
+        float corona=exp(-angle*angle/.0018)*.19;
+        float halo=exp(-angle*angle/.018)*.045;
+        // Only the sky draws the sun; terrain haze must never paint it across walls.
+        vec3 sunlight=vec3(3.2,2.9,2.35)*disc+vec3(1.,.91,.73)*(corona+halo);
+        gl_FragColor=vec4(atmosphereColor(direction)+sunlight,1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -84,4 +98,24 @@ export function createSky() {
   mesh.renderOrder=-1000;
   mesh.frustumCulled = false;
   return { mesh, material: mat };
+}
+
+// Fine surface variation keeps the landmark from looking like clean plastic.
+export function weatherMaterial(material:THREE.MeshStandardMaterial,roof=false){
+  material.onBeforeCompile=shader=>{
+    shader.vertexShader='varying vec3 vWeatherWorld;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvWeatherWorld=(modelMatrix*vec4(transformed,1.)).xyz;');
+    shader.fragmentShader='varying vec3 vWeatherWorld;\n'+noise+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      float mottling=fbm2(vWeatherWorld.xy*2.1+vWeatherWorld.z*.7);
+      diffuseColor.rgb*=.86+mottling*.24;
+      ${roof?`vec2 tiles=vWeatherWorld.xz*vec2(1.25,1.65);
+      tiles.x+=mod(floor(tiles.y),2.)*.5;
+      vec2 edge=min(fract(tiles),1.-fract(tiles));vec2 footprint=fwidth(tiles);
+      float seam=smoothstep(0.,max(.025,footprint.x),edge.x)*smoothstep(0.,max(.025,footprint.y),edge.y);
+      float detail=1.-smoothstep(.08,.4,max(footprint.x,footprint.y));
+      diffuseColor.rgb*=mix(1.,mix(.6,1.,seam),detail);`:''}
+    `);
+  };
+  material.customProgramCacheKey=()=>`weather-${roof}`;
 }

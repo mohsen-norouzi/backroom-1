@@ -16,13 +16,12 @@ test('valley cloud bounds stay outside the cliff and above the lower field',()=>
  }
 });
 test('actual 3D cloud instances and their shadows remain clear after hours of drift',()=>{
- const scene=new THREE.Scene(),atmosphere=atmosphereUniforms(),field=createCloudField(scene,atmosphere);
+ const scene=new THREE.Scene(),atmosphere=atmosphereUniforms(),field=createCloudField(scene,atmosphere,false);
  field.update(86400,86400);
  const clouds=scene.children[0].children;assert.equal(clouds.length,VALLEY_CLOUD_COUNT+SKY_GRID*SKY_GRID);
  clouds.forEach((cloud,i)=>{
-  const radius=cloud.scale.length();
-  if(i<VALLEY_CLOUD_COUNT){assert.ok(cloud.position.z-radius>=CLOUD_CLEARANCE-1e-9);assert.ok(cloud.position.y-radius>=FLOOR+CLOUD_CLEARANCE-1e-9);}
-  else assert.ok(cloud.position.y-radius>=TOP+CLOUD_CLEARANCE-1e-9);
+  if(i<VALLEY_CLOUD_COUNT){assert.ok(cloud.position.z-cloud.scale.z>=CLOUD_CLEARANCE-1e-9);assert.ok(cloud.position.y-cloud.scale.y>=FLOOR+CLOUD_CLEARANCE-1e-9);}
+  else assert.ok(cloud.position.y-cloud.scale.y>=TOP+CLOUD_CLEARANCE-1e-9);
 
  });
  for(const center of atmosphere.uCloudCenters.value)assert.ok(clouds.some(cloud=>cloud.position.equals(center)));

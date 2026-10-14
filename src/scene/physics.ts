@@ -9,18 +9,22 @@ export const NOTCH_END = -37;
 export function terrainHeight(x: number, z: number) {
   return z <= 0 && !(Math.abs(x) < NOTCH && z > NOTCH_END) ? TOP : FLOOR;
 }
+// Walkers fall onto the surface below them, including the sloping house roof.
+export function standingHeight(x:number,z:number){
+  let height=terrainHeight(x,z);
+  if(Math.abs(x)<=7.15&&Math.abs(z+56)<=6.2)
+    height=Math.max(height,TOP+12.2-Math.abs(x)*4.9/7.15+.125*Math.hypot(1,4.9/7.15));
+  if(Math.abs(x)<=2&&Math.abs(z+50.3)<=1.25)
+    height=Math.max(height,TOP+6.7-Math.abs(x)*.8+.125*Math.hypot(1,.8));
+  return height;
+}
 export function solidAt(x:number,y:number,z:number) {
   if(y<TOP-.1&&terrainHeight(x,z)===TOP)return true;
-  // House, including roof: conservatively solid rather than entering an unbuilt interior.
-  return Math.abs(x)<7.1&&z>-62.3&&z<-48.9&&y>TOP&&y<TOP+12.4;
+  return y>TOP&&y<standingHeight(x,z);
 }
 export function resolveHorizontal(x:number,y:number,z:number,dx:number,dz:number,radius=.35) {
   const valid=(nx:number,nz:number)=> !solidAt(nx-radius,y,nz)&&!solidAt(nx+radius,y,nz)&&!solidAt(nx,y,nz-radius)&&!solidAt(nx,y,nz+radius);
   const steps=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.3));
   for(let i=0;i<steps;i++) {if(valid(x+dx/steps,z))x+=dx/steps;if(valid(x,z+dz/steps))z+=dz/steps;}
   return {x,z};
-}
-export function safeLanding(x:number,z:number) {
-  if(terrainHeight(x,z)!==TOP||solidAt(x,TOP+EYE_HEIGHT,z))return {x:15,y:TOP+EYE_HEIGHT,z:-26};
-  return {x,y:TOP+EYE_HEIGHT,z};
 }

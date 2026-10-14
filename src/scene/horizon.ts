@@ -1,27 +1,30 @@
-// Sky, terrain and distant clouds share linear-light atmospheric colors.
-export const SKY_RADIUS = 8500;
-export const HAZE_END = 7200;
-export const horizonGLSL = `
-vec3 atmosphereColor(vec3 direction) {
+import { SUN_DIRECTION } from './atmosphere';
+
+// The same linear-light atmosphere is used by land, clouds and sky.
+export const SKY_RADIUS=7500;
+export const HAZE_END=7200;
+export const horizonGLSL=`
+const vec3 sunDirection=vec3(${SUN_DIRECTION.toArray().map(value=>value.toFixed(7)).join(',')});
+vec3 atmosphereColor(vec3 direction){
   vec3 dir=normalize(direction);
-  vec3 horizon=vec3(.47,.61,.65);
-  vec3 zenith=vec3(.055,.27,.50);
-  float elevation=pow(smoothstep(.012,.85,max(dir.y,0.)),.65);
+  vec3 horizon=vec3(.33,.48,.52),zenith=vec3(.10,.33,.58);
+  float elevation=1.-exp(-max(dir.y,0.)*14.);
   vec3 sky=mix(horizon,zenith,elevation);
-  float sun=max(dot(dir,normalize(vec3(-.48,.67,.55))),0.);
-  float aboveHaze=smoothstep(.025,.16,dir.y);
-  sky+=vec3(1.,.89,.74)*pow(sun,12.)*.075*aboveHaze;
-  sky+=vec3(1.,.94,.83)*pow(sun,500.)*.22;
+  float sun=max(dot(dir,sunDirection),0.);
+  sky+=vec3(.95,.88,.73)*pow(sun,18.)*.04;
   return sky;
 }
-float terrainHaze(vec3 viewRay) {
+float terrainHaze(vec3 viewRay){
+  // Real distance, never angle to the camera: a near wall cannot become a blue stripe.
   float distanceToEye=length(viewRay);
-  float air=1.-exp(-pow(distanceToEye*.00034,1.8));
-  // At eye level a flat field compresses kilometres into a single pixel.
-  // A shallow atmospheric band keeps that silhouette from becoming a hard seam.
-  float elevation=abs(viewRay.y)/max(distanceToEye,.001);
-  float horizon=(1.-smoothstep(.002,.08,elevation))*smoothstep(40.,240.,distanceToEye);
-  air=1.-(1.-air)*(1.-horizon*.995);
+  float air=1.-exp(-pow(distanceToEye*.00043,1.45));
+  return mix(air,1.,smoothstep(4800.,7200.,distanceToEye));
+}
+float fieldHaze(vec3 viewRay){
+  // A shallow ground mist is denser at walking height, but never applied to cliff faces.
+  float distanceToEye=length(viewRay);
+  float extinction=.00043+.0045*exp(-abs(viewRay.y)/9.);
+  float air=1.-exp(-pow(distanceToEye*extinction,1.45));
   return mix(air,1.,smoothstep(4800.,7200.,distanceToEye));
 }
 `;

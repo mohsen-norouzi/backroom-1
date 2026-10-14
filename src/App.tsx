@@ -6,7 +6,7 @@ import type { Mode } from './scene/navigation';
 export default function App(){
   const host=useRef<HTMLDivElement>(null),experience=useRef<Experience|null>(null),overlay=useRef<HTMLDivElement>(null);
   const [ready,setReady]=useState(false),[active,setActive]=useState(false),[visited,setVisited]=useState(false);
-  const [dragLook,setDragLook]=useState(false),[mode,setMode]=useState<Mode>('fly'),[error,setError]=useState(''),[hint,setHint]=useState(false),[climbing,setClimbing]=useState(false);
+  const [dragLook,setDragLook]=useState(false),[mode,setMode]=useState<Mode>('fly'),[error,setError]=useState(''),[climbing,setClimbing]=useState(false);
   const coarse=matchMedia('(pointer: coarse)').matches;
   useEffect(()=>{
     let disposed=false;
@@ -20,7 +20,6 @@ export default function App(){
   useEffect(()=>{
     if(!overlay.current)return;
     const tween=gsap.to(overlay.current,{opacity:active?0:1,y:active?12:0,duration:active?.8:1.2,ease:'power2.out'});
-    if(active){setHint(true);const timer=setTimeout(()=>setHint(false),7000);return()=>{clearTimeout(timer);tween.kill();};}
     return()=>{tween.kill();};
   },[active]);
   async function enter(){
@@ -52,7 +51,7 @@ export default function App(){
     </div>
     {active&&<>
       <button type="button" className="session-status mode-toggle absolute bottom-7 left-7 flex items-center gap-2.5 md:bottom-10 md:left-12" onClick={()=>experience.current?.navigation.toggleMode()} onKeyDown={e=>{if(e.code==='Space'||e.code==='Enter')e.stopPropagation();}} aria-label={mode==='fly'?'Switch to walking mode':'Switch to flying mode'} aria-keyshortcuts="F"><span className="status-dot"/>{climbing?'CLIMB':mode==='fly'?'FLY':'WALK'}<span className="mode-switch-hint">{climbing?'W / S · E LET GO':coarse?'TAP TO SWITCH':<><kbd className="mode-key">F</kbd><span>{mode==='fly'?'WALK':'FLY'}</span></>}</span></button>
-      <div className={`session-hint pointer-events-none absolute bottom-7 right-7 text-right md:bottom-10 md:right-12 ${hint?'is-visible':''}`}>{coarse?'DRAG TO EXPLORE · DOUBLE TAP TO WALK':dragLook?'DRAG look · WASD move · SHIFT faster · ESC pause':mode==='fly'?'SPACE / E rise · Q descend · SHIFT faster · F walk · ESC pause':'E ladder · W / S climb · SHIFT run · F fly · ESC pause'}</div>
+      <div className="session-hint pointer-events-none absolute bottom-7 right-7 text-right md:bottom-10 md:right-12">{coarse?'DRAG TO EXPLORE · DOUBLE TAP TO WALK':dragLook?'DRAG look · WASD move · SHIFT faster · ESC pause':mode==='fly'?'SPACE / E rise · Q descend · SHIFT faster · F walk · ESC pause':'E ladder · W / S climb · SHIFT run · F fly · ESC pause'}</div>
     </>}
     {error&&<p role="alert" className="error-message absolute left-1/2 top-7 z-20 max-w-[90%] -translate-x-1/2 rounded bg-[#263c36]/80 px-5 py-3 text-center text-sm">{error}</p>}
     <p className="sr-only" aria-live="polite">{active?`${climbing?'Climbing. W and S climb, E lets go':mode==='fly'?'Flying':'Walking'}. Press F to switch movement mode. Escape to pause.`:ready?'The scene is ready. Activate Enter to explore.':'Loading the landscape.'}</p>

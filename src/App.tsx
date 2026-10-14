@@ -35,7 +35,7 @@ export default function App(){
         <div className="identity flex items-center gap-3"><span className="place-symbol" aria-hidden="true"><i/><i/><i/></span><span>FIELD NO. 001</span></div>
         <div className="text-right">
           <span className="edition hidden sm:block">A PLACE OUTSIDE OF TIME</span>
-          <p className="creator-credit sm:mt-2">made by mohsenized</p>
+          <p className="creator-credit sm:mt-2">made by <a href="https://itsmohsen.com" target="_blank" rel="noopener noreferrer" tabIndex={active?-1:0}>mohsenized</a></p>
         </div>
       </header>
       <div className="title-block absolute left-7 bottom-[22%] md:left-12 md:bottom-[19%]">

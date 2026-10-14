@@ -1,0 +1,6 @@
+Asset: grass-turf.png
+Saved project path: /Users/mohsen/Nova/Experiments/Backrooms/The Quiet/public/textures/grass-turf.png
+Method: built-in image_gen tool (not CLI).
+
+Final prompt:
+Use case: photorealistic-natural. Asset type: seamless tileable grass albedo texture for a realistic Three.js landscape. Generate one square 1536x1536 photograph-like texture of dense short ordinary meadow turf, viewed exactly perpendicular from directly above. The image covers about 1.5 metres of ground. Individual fine interwoven blades of cut grass, clover-free, subtle moss and occasional dry straw beneath, natural irregular growth, medium muted meadow green with slight olive variation, very dense coverage. Flat diffuse overcast illumination, no baked directional shadows, no specular highlights, no perspective, no horizon, no objects, no flowers, no bald patches, no long isolated blades, no text. Entire square filled with fine detailed continuous grass. Opposite edges must tile seamlessly. Real photographic texture, understated colours, absolutely not cartoon or illustration.

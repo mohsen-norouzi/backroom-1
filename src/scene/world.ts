@@ -6,7 +6,9 @@ import { grassTexture, grassMaterial, createSky } from './materials';
 import { atmosphereUniforms } from './atmosphere';
 import { createCloudField } from './cloudVolume';
 import { createLivingGrass } from './grass';
-import { TOP, FLOOR, NOTCH_END } from './physics';
+import { TOP, FLOOR, NOTCH_SLOPE } from './physics';
+import { ladderZAt } from './ladder';
+import { shadeRecessMaterial } from './recessLighting';
 import { createCottage } from './house';
 import { createGarden } from './garden';
 import { createTurfRim } from './turfRim';
@@ -15,7 +17,7 @@ export function buildWorld(scene: THREE.Scene) {
   const grassMap = grassTexture();
   const atmosphere=atmosphereUniforms();
   const clouds=createCloudField(scene,atmosphere);
-  const livingGrass=createLivingGrass(scene,atmosphere);
+  const livingGrass=createLivingGrass(scene,atmosphere,grassMap);
   const topMat = grassMaterial(grassMap,false,false,atmosphere);
   const sideMat = grassMaterial(grassMap, true,false,atmosphere);
   const darkMat = grassMaterial(grassMap, true, true,atmosphere);
@@ -39,12 +41,15 @@ export function buildWorld(scene: THREE.Scene) {
   const garden=createGarden();scene.add(garden.group);
   const turfRim=createTurfRim();scene.add(turfRim.mesh);
 
-  const ladderMat=material('#c8bc91',{roughness:.76});
-  for(const side of [-1,1]) box(.23,height+2,.23,side*.76,(TOP+FLOOR)/2+.5,NOTCH_END+.5,ladderMat,true);
+  const ladderMat=material('#c8bc91',{roughness:.76});shadeRecessMaterial(ladderMat);
+  for(const side of [-1,1]) {
+    const rail=box(.23,(height+2)*Math.hypot(1,NOTCH_SLOPE),.23,side*.76,(TOP+FLOOR)/2+.5,ladderZAt((TOP+FLOOR)/2+.5),ladderMat,true);
+    rail.rotation.x=-Math.atan(NOTCH_SLOPE);
+  }
   const rungGeo=new THREE.CylinderGeometry(.095,.095,1.66,7); geometries.push(rungGeo);
   const rungs=new THREE.InstancedMesh(rungGeo,ladderMat,510);
   const dummy=new THREE.Object3D();
-  for(let i=0;i<510;i++){dummy.position.set(0,FLOOR+.5+i*.5,NOTCH_END+.5); dummy.rotation.z=Math.PI/2; dummy.updateMatrix(); rungs.setMatrixAt(i,dummy.matrix);}
+  for(let i=0;i<510;i++){const y=FLOOR+.5+i*.5;dummy.position.set(0,y,ladderZAt(y)); dummy.rotation.z=Math.PI/2; dummy.updateMatrix(); rungs.setMatrixAt(i,dummy.matrix);}
   rungs.castShadow=true; group.add(rungs);
   // A faint worn route connects the front door to the ladder.
   const pathMat=material('#827e65',{transparent:true,opacity:.22,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
@@ -70,7 +75,7 @@ export function buildWorld(scene: THREE.Scene) {
     ready:clouds.ready,
     get volumeCount(){return clouds.volumeCount;},
     update(time:number,delta:number,camera:THREE.Camera){
-      clouds.update(time,delta,camera.position,camera);livingGrass.update(camera.position);turfRim.update(camera.position);sky.mesh.position.copy(camera.position);
+      clouds.update(time,delta,camera.position,camera);livingGrass.update(camera.position,camera);turfRim.update(camera.position);sky.mesh.position.copy(camera.position);
     },
     dispose(){
       group.traverse(object=>{if(object instanceof THREE.InstancedMesh)object.dispose();});

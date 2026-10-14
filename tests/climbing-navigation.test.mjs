@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { Navigation } from '../src/scene/navigation.ts';
-import { LADDER_CAMERA_Z } from '../src/scene/ladder.ts';
+import { ladderCameraZ } from '../src/scene/ladder.ts';
 
 test('actual movement holds a ladder grip during mouse look, strafe, pause and resume',()=>{
  const previous={document:globalThis.document,window:globalThis.window,matchMedia:globalThis.matchMedia};
  const doc=new EventTarget(),win=new EventTarget(),canvas=new EventTarget();
  doc.pointerLockElement=canvas;doc.hidden=false;
  globalThis.document=doc;globalThis.window=win;globalThis.matchMedia=()=>({matches:false});
- const camera=new THREE.PerspectiveCamera();camera.position.set(.2,20,LADDER_CAMERA_Z+.3);
+ const camera=new THREE.PerspectiveCamera();camera.position.set(.2,20,ladderCameraZ(20)+.3);
  const states=[],nav=new Navigation(camera,canvas,()=>{},()=>{},value=>states.push(value));
  const event=(type,properties)=>{const e=new Event(type);for(const [key,value] of Object.entries(properties))Object.defineProperty(e,key,{value});doc.dispatchEvent(e);};
  const key=(type,code)=>event(type,{code,repeat:false});
@@ -23,9 +23,9 @@ test('actual movement holds a ladder grip during mouse look, strafe, pause and r
   assert.equal(nav.speed,0);
   nav.pause();advance(60);nav.activate();advance(120);assert.ok(camera.position.equals(held));assert.ok(nav.climbing);
   key('keydown','KeyW');advance(60);key('keyup','KeyW');
-  assert.ok(Math.abs(camera.position.y-held.y-1.25)<1e-8);assert.equal(camera.position.z,LADDER_CAMERA_Z);
+  assert.ok(Math.abs(camera.position.y-held.y-1.25)<1e-8);assert.equal(camera.position.z,ladderCameraZ(camera.position.y));
   key('keydown','KeyE');key('keyup','KeyE');assert.equal(nav.climbing,false);
-  const releasedY=camera.position.y;advance(5);assert.ok(camera.position.y<releasedY);assert.ok(camera.position.z>LADDER_CAMERA_Z);
+  const releasedY=camera.position.y;advance(5);assert.ok(camera.position.y<releasedY);assert.ok(camera.position.z>ladderCameraZ(camera.position.y));
  } finally {
   nav.dispose();
   for(const [name,value] of Object.entries(previous)){if(value===undefined)delete globalThis[name];else globalThis[name]=value;}

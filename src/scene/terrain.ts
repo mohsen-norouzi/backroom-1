@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TOP, FLOOR, NOTCH, NOTCH_END, EDGE, FIELD_DEPTH } from './physics';
+import { TOP, FLOOR, NOTCH, NOTCH_END, EDGE, FIELD_DEPTH, notchBackZ, NOTCH_SLOPE } from './physics';
 
 export const TURF_RIM=.28;
 // The grass-covered lip rolls over the cliff instead of ending in a razor-sharp cube.
@@ -16,6 +16,8 @@ export function createTerrainGeometry(){
     const e=.001,n=new THREE.Vector3(turfSurfaceHeight(x-e,z)-turfSurfaceHeight(x+e,z),e*2,turfSurfaceHeight(x,z-e)-turfSurfaceHeight(x,z+e));return n.normalize().toArray();
   }
   function quad(points:number[][],material:number,smooth=false){
+    // Keep the rounded top lip welded to the sloping recess at its rear edge.
+    if(smooth)points=points.map(([x,y,z])=>[x,y,z<=NOTCH_END?z+(TOP-y)*NOTCH_SLOPE:z]);
     const start=vertices.length/3;
     const normal=new THREE.Vector3().fromArray(points[1]).sub(new THREE.Vector3().fromArray(points[0])).cross(new THREE.Vector3().fromArray(points[2]).sub(new THREE.Vector3().fromArray(points[0]))).normalize().toArray();
     for(const i of [0,1,2,0,2,3]){const p=points[i];vertices.push(...p);uv.push(i===1||i===2?1:0,i>=2?1:0);normals.push(...(smooth?topNormal(p[0],p[2]):normal));}
@@ -34,9 +36,9 @@ export function createTerrainGeometry(){
   quad([[-EDGE,FLOOR,FIELD_DEPTH/2],[EDGE,FLOOR,FIELD_DEPTH/2],[EDGE,FLOOR,-FIELD_DEPTH/2],[-EDGE,FLOOR,-FIELD_DEPTH/2]],0);
   const lip=TOP-TURF_RIM;
   for(const [x0,x1] of [[-EDGE,-NOTCH],[NOTCH,EDGE]])quad([[x0,FLOOR,0],[x1,FLOOR,0],[x1,lip,0],[x0,lip,0]],1);
-  quad([[-NOTCH,FLOOR,NOTCH_END],[NOTCH,FLOOR,NOTCH_END],[NOTCH,lip,NOTCH_END],[-NOTCH,lip,NOTCH_END]],2);
-  quad([[-NOTCH,FLOOR,0],[-NOTCH,FLOOR,NOTCH_END],[-NOTCH,lip,NOTCH_END],[-NOTCH,lip,0]],2);
-  quad([[NOTCH,FLOOR,NOTCH_END],[NOTCH,FLOOR,0],[NOTCH,lip,0],[NOTCH,lip,NOTCH_END]],2);
+  quad([[-NOTCH,FLOOR,notchBackZ(FLOOR)],[NOTCH,FLOOR,notchBackZ(FLOOR)],[NOTCH,lip,notchBackZ(lip)],[-NOTCH,lip,notchBackZ(lip)]],2);
+  quad([[-NOTCH,FLOOR,0],[-NOTCH,FLOOR,notchBackZ(FLOOR)],[-NOTCH,lip,notchBackZ(lip)],[-NOTCH,lip,0]],2);
+  quad([[NOTCH,FLOOR,notchBackZ(FLOOR)],[NOTCH,FLOOR,0],[NOTCH,lip,0],[NOTCH,lip,notchBackZ(lip)]],2);
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
   // Contiguous material groups avoid one draw per small bevel strip.
   const byMaterial=[0,1,2].map(()=>({position:[] as number[],normal:[] as number[],uv:[] as number[]}));

@@ -1,5 +1,6 @@
 import { TOP } from './physics';
 import { HOUSE_Z } from './houseShape';
+import { createWorldEcho } from './ambience';
 
 type Point={x:number;y:number;z:number};
 export const HOUSE_SONG_POSITION={x:0,y:TOP+3.8,z:HOUSE_Z};
@@ -13,22 +14,12 @@ export function songMixAtDistance(distance:number){
   };
 }
 
-// One physical emitter. Every route, including the house's small room reflection,
+// One physical emitter. Every route, including the faint outdoor echo,
 // passes through this panner; nothing plays directly into the listener's headphones.
 export function createHouseEmitter(ctx:BaseAudioContext,source:AudioNode,output:AudioNode){
   const mono=ctx.createGain();mono.channelCount=1;mono.channelCountMode='explicit';mono.channelInterpretation='speakers';
   const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.Q.value=.45;
   const dry=ctx.createGain();dry.gain.value=.94;
-  const room=ctx.createGain();room.gain.value=.06;
-  const space=ctx.createConvolver();
-  const length=Math.floor(ctx.sampleRate*.38),impulse=ctx.createBuffer(1,length,ctx.sampleRate);
-  const data=impulse.getChannelData(0),delay=Math.floor(ctx.sampleRate*.018);
-  let seed=437;
-  for(let i=delay;i<length;i++){
-    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
-    data[i]=(seed/4294967296*2-1)*Math.pow(1-i/length,3);
-  }
-  space.buffer=impulse;
   const panner=ctx.createPanner();panner.panningModel='HRTF';panner.distanceModel='inverse';
   panner.channelCount=1;panner.channelCountMode='explicit';
   // Distance has a gentle floor for audibility; it never changes the source's position.
@@ -37,9 +28,9 @@ export function createHouseEmitter(ctx:BaseAudioContext,source:AudioNode,output:
   const level=ctx.createGain();level.gain.value=0;
   source.connect(mono);mono.connect(filter);
   filter.connect(dry);dry.connect(panner);
-  filter.connect(space);space.connect(room);room.connect(panner);
+  const echo=createWorldEcho(ctx,filter,panner,.16);
   panner.connect(level);level.connect(output);
-  return {panner,level,filter,dispose(){for(const node of [mono,filter,dry,space,room,panner,level])node.disconnect();}};
+  return {panner,level,filter,dispose(){echo.dispose();for(const node of [mono,filter,dry,panner,level])node.disconnect();}};
 }
 
 export class HouseSong {

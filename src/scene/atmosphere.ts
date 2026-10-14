@@ -37,7 +37,10 @@ float cloudShade(vec3 p){
   float fieldOptical=texture2D(uFieldShadows,fieldPosition/12000.+.5).r;
   float shade=1.-fieldOptical*.78*fieldWeight;
   for(int i=0;i<8;i++){
-    if(uCloudSizes[i].x<.1)continue;
+    float localWeight=1.-uCloudSkyLayers[i]*fieldWeight;
+    // Upper-cloud shadows are already in the field map. Skip their projection
+    // work entirely when the receiver uses that map (especially grass fragments).
+    if(uCloudSizes[i].x<.1||localWeight<.001)continue;
     vec3 q=(p-uCloudCenters[i])/uCloudSizes[i];
     vec3 d=uSunDirection/uCloudSizes[i];
     float t=-dot(q,d)/dot(d,d);
@@ -51,7 +54,6 @@ float cloudShade(vec3 p){
     float optical=variant<.5?footprint.r:variant<1.5?footprint.g:footprint.b;
     // Low plateau clouds also exist in the field map. Layer identity, not
     // altitude, prevents counting their shadows twice as they drift overhead.
-    float localWeight=1.-uCloudSkyLayers[i]*fieldWeight;
     shade*=1.-optical*.78*localWeight;
   }
   return max(.20,shade);

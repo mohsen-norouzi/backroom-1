@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { cloudShadowGLSL } from './atmosphere';
 import { horizonGLSL, SKY_RADIUS } from './horizon';
 import type { AtmosphereUniforms } from './atmosphere';
+import { recessLightingGLSL, withoutLocalShadowMap } from './recessLighting';
 
 export function random(seed: number) {
   let state = seed >>> 0;
@@ -37,10 +38,13 @@ export function grassMaterial(texture: THREE.Texture, wall = false, dark = false
     const grassUV=wall?'vec2(p.x+p.z,p.y)*.68':'p.xz*.68';
     shader.fragmentShader = 'varying vec3 vWorld;\n' + noise + horizonGLSL + (atmosphere?cloudShadowGLSL:'') + `vec2 grassUVWorld(vec3 p){return ${grassUV};}\n` + shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <bumpmap_pars_fragment>',THREE.ShaderChunk.bumpmap_pars_fragment.replaceAll('vBumpMapUv','grassUVWorld(vWorld)'));
+    if(wall)shader.fragmentShader=withoutLocalShadowMap(shader.fragmentShader);
+    if(dark)shader.fragmentShader=recessLightingGLSL+shader.fragmentShader;
     // Fog is blended in linear light with the exact same sky color as the background.
     shader.fragmentShader=shader.fragmentShader.replace('#include <fog_fragment>','');
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
-      ${atmosphere?'outgoingLight -= reflectedLight.directDiffuse * (1.-cloudShade(vWorld));':''}
+      outgoingLight -= reflectedLight.directDiffuse * (1.-${atmosphere?'cloudShade(vWorld)':'1.'}${dark?'*recessSunVisibility(vWorld)':''});
+      ${dark?'outgoingLight -= reflectedLight.indirectDiffuse * (1.-recessSkyVisibility(vWorld));':''}
       vec3 viewRay=vWorld-cameraPosition;
       outgoingLight=mix(outgoingLight,atmosphereColor(viewRay),${wall?'terrainHaze':'fieldHaze'}(viewRay));
       #include <opaque_fragment>
@@ -65,7 +69,7 @@ export function grassMaterial(texture: THREE.Texture, wall = false, dark = false
       diffuseColor.rgb*=.94+streak*.12;`:''}
     `);
   };
-  mat.customProgramCacheKey = () => `grass-v8-${wall}-${dark}-${!!atmosphere}`;
+  mat.customProgramCacheKey = () => `grass-v9-${wall}-${dark}-${!!atmosphere}`;
   return mat;
 }
 

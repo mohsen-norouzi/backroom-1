@@ -1,5 +1,6 @@
 import { windSettings } from './tuning';
 import { HouseSong } from './music';
+import { breezeSamples, createWorldEcho } from './ambience';
 
 // Samples are supplied locally; audio only starts after entering the scene.
 export class Soundscape {
@@ -7,6 +8,8 @@ export class Soundscape {
   private master: GainNode | null = null;
   private wind: GainNode | null = null;
   private windFilter: BiquadFilterNode | null = null;
+  private stepEchoInput: GainNode | null = null;
+  private stepEcho: ReturnType<typeof createWorldEcho> | null = null;
   private nodes: AudioScheduledSourceNode[] = [];
   private samples = new Map<string, AudioBuffer>();
   private footsteps = new Set<AudioBufferSourceNode>();
@@ -28,15 +31,15 @@ export class Soundscape {
     const master=ctx.createGain();master.gain.value=0;master.connect(ctx.destination);this.master=master;
     this.song=new HouseSong(ctx,master,this.host);
     void this.song.play().catch(error=>console.warn('House song could not play:',error));
-    const buffer=ctx.createBuffer(1,ctx.sampleRate*4,ctx.sampleRate), data=buffer.getChannelData(0);
-    let last=0;
-    for(let i=0;i<data.length;i++){const white=Math.random()*2-1;last=(last+.025*white)/1.025;data[i]=last*6;}
+    const data=breezeSamples(ctx.sampleRate),buffer=ctx.createBuffer(1,data.length,ctx.sampleRate);
+    buffer.getChannelData(0).set(data);
     const noise=ctx.createBufferSource();noise.buffer=buffer;noise.loop=true;
-    const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=270;filter.Q.value=.3;this.windFilter=filter;
-    const wind=ctx.createGain();wind.gain.value=.065;this.wind=wind;noise.connect(filter);filter.connect(wind);wind.connect(master);noise.start();this.nodes.push(noise);
-    const low=ctx.createOscillator();low.type='sine';low.frequency.value=54;
-    const lowGain=ctx.createGain();lowGain.gain.value=.009;low.connect(lowGain);lowGain.connect(master);low.start();this.nodes.push(low);
-    const lfo=ctx.createOscillator();lfo.frequency.value=.09;const lfoGain=ctx.createGain();lfoGain.gain.value=.004;lfo.connect(lfoGain);lfoGain.connect(wind.gain);lfo.start();this.nodes.push(lfo);
+    const lowCut=ctx.createBiquadFilter();lowCut.type='highpass';lowCut.frequency.value=95;lowCut.Q.value=.5;
+    const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=650;filter.Q.value=.4;this.windFilter=filter;
+    const wind=ctx.createGain();wind.gain.value=0;this.wind=wind;
+    noise.connect(lowCut);lowCut.connect(filter);filter.connect(wind);wind.connect(master);noise.start();this.nodes.push(noise);
+    this.stepEchoInput=ctx.createGain();
+    this.stepEcho=createWorldEcho(ctx,this.stepEchoInput,master,.065);
     master.gain.setTargetAtTime(.65,ctx.currentTime,1.8);
     await ctx.resume();
     await Promise.all(['walk-on-grass','footstep-ladder-left','footstep-ladder-right'].map(async name=>{
@@ -57,9 +60,9 @@ export class Soundscape {
     if(!this.ctx||!this.wind||!this.windFilter)return;
     const t=this.ctx.currentTime,dt=this.previousTime?Math.min(.05,time-this.previousTime):0;
     this.previousTime=time;
-    const wind=windSettings(speed,altitude);
-    this.wind.gain.setTargetAtTime(wind.gain,t,2);
-    this.windFilter.frequency.setTargetAtTime(wind.cutoff,t,2);
+    const wind=windSettings(speed,altitude,time);
+    this.wind.gain.setTargetAtTime(wind.gain,t,3);
+    this.windFilter.frequency.setTargetAtTime(wind.cutoff,t,3);
     if(this.wasClimbing!==climbing)this.stepDistance=0;
     this.wasClimbing=climbing;
     if(!walking||(!grounded&&!climbing)||speed<.1){this.stepDistance=0;return;}
@@ -77,7 +80,7 @@ export class Soundscape {
     source.playbackRate.value=climbing?1: .96+Math.random()*.08;
     const gain=ctx.createGain();gain.gain.value=climbing?.24:.22;
     const pan=ctx.createStereoPanner();pan.pan.value=this.rightFoot?.12:-.12;
-    source.connect(gain);gain.connect(pan);pan.connect(this.master);source.start();this.footsteps.add(source);
+    source.connect(gain);gain.connect(pan);pan.connect(this.master);if(this.stepEchoInput)pan.connect(this.stepEchoInput);source.start();this.footsteps.add(source);
     source.onended=()=>{source.disconnect();gain.disconnect();pan.disconnect();this.footsteps.delete(source);};
   }
   pause(){
@@ -85,5 +88,5 @@ export class Soundscape {
     this.song?.pause();
     this.stepDistance=0;this.previousTime=0;
   }
-  dispose(){this.song?.dispose();this.song=null;this.nodes.forEach(n=>n.stop());this.footsteps.forEach(n=>n.stop());void this.ctx?.close();this.ctx=null;}
+  dispose(){this.stepEcho?.dispose();this.stepEchoInput?.disconnect();this.song?.dispose();this.song=null;this.nodes.forEach(n=>n.stop());this.footsteps.forEach(n=>n.stop());void this.ctx?.close();this.ctx=null;}
 }
